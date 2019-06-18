@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 
 from Bio import SeqIO
+import numpy as np
 import subprocess
 import tempfile
 import argparse
@@ -31,6 +32,13 @@ def get_args():
     parser.add_argument('--origin_fasta',
                         default='oriC_ecoli.fasta',
                         help='Path to FASTA-formatted file with origin of replication in it.')
+    parser.add_argument('-o', '--output_name',
+                        help='Base name of your output FASTQ file. You\'ll end up with output_name_R1.fastq and '
+                             'output_name_R2.fastq')
+    parser.add_argument('-s', '--spikiness',
+                        default=5,
+                        help='Amount of standard deviation to add to coverage level for each block. Makes data end '
+                             'up looking more spiky (to use a technical term) and hopefully therefore more realisitic.')
     return parser.parse_args()
 
 
@@ -93,27 +101,27 @@ if __name__ == '__main__':
         step_size = (highest_level - lowest_level)/(num_blocks/2)
         current_coverage = highest_level
         # 3) Run ART on all the blocks
-        for i in range(int(num_blocks/2)):
+        for i in range(int(num_blocks/2) + 1):
             tmpfasta = os.path.join(tmpdir, 'tmpfasta.fasta')
             with open(tmpfasta, 'w') as f:
                 f.write('>sequence\n{}\n'.format(rotated_sequence.seq[i * args.block_size: i * args.block_size + args.block_size]))
             cmd = 'art_illumina -ss MSv1 -na -i {tmpfasta} -l 250 -f {coverage} -m 400 -s 10 -o {filename}'.format(tmpfasta=tmpfasta,
-                                                                                                                   coverage=current_coverage,
+                                                                                                                   coverage=np.random.normal(current_coverage, args.spikiness),
                                                                                                                    filename=os.path.join(tmpdir, 'block_' + str(i) + '_'))
             subprocess.call(cmd, shell=True)
             current_coverage -= step_size
-        for j in range(int(num_blocks/2)):
+        for j in range(int(num_blocks/2) + 1):
             tmpfasta = os.path.join(tmpdir, 'tmpfasta.fasta')
             with open(tmpfasta, 'w') as f:
                 f.write('>sequence\n{}\n'.format(rotated_sequence.seq[(i + j) * args.block_size: (i + j) * args.block_size + args.block_size]))
             cmd = 'art_illumina -ss MSv1 -na -i {tmpfasta} -l 250 -f {coverage} -m 400 -s 10 -o {filename}'.format(tmpfasta=tmpfasta,
-                                                                                                                   coverage=current_coverage,
+                                                                                                                   coverage=np.random.normal(current_coverage, args.spikiness),
                                                                                                                    filename=os.path.join(tmpdir, 'block_' + str(i + j) + '_'))
             subprocess.call(cmd, shell=True)
             current_coverage += step_size
 
         # 4) Combine all the FASTQ files created from 3 into one big FASTQ that has the coverage pattern that we want.
-        cmd = 'cat {} > test_R1.fastq'.format(os.path.join(tmpdir, '*_1.fq'))
+        cmd = 'cat {} > {}_R1.fastq'.format(os.path.join(tmpdir, '*_1.fq'), args.output_name)
         os.system(cmd)
-        cmd = 'cat {} > test_R2.fastq'.format(os.path.join(tmpdir, '*_2.fq'))
+        cmd = 'cat {} > {}_R2.fastq'.format(os.path.join(tmpdir, '*_2.fq'), args.output_name)
         os.system(cmd)

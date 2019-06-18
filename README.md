@@ -10,7 +10,7 @@ more sequencing coverage around the origin than elsewhere.
 
 Clone this repository and use the `growth_phase_simulator.py` script. You'll need to have `art_illumina` 
 accessible on your $PATH, as well as `blastn` and `makeblastdb`. In terms of python packages, all that you 
-need is biopython.
+need is biopython (and numpy, but that's a biopython dependency anyways).
 
 ## Usage
 
